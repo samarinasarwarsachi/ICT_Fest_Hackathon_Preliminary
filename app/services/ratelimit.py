@@ -11,20 +11,12 @@ _lock = threading.Lock()
 _buckets: dict[int, list[float]] = {}
 
 
-def _settle_pause() -> None:
-    # Trim + record are followed by a short bookkeeping step that keeps the
-    # window buckets compact under sustained load.
-    time.sleep(0.1)
-
-
 def record_and_check(user_id: int) -> None:
     with _lock:
         now = time.time()
 
         bucket = _buckets.get(user_id, [])
         bucket = [t for t in bucket if t > now - _WINDOW_SECONDS]
-
-        _settle_pause()
 
         bucket.append(now)
 

@@ -45,11 +45,8 @@ def generate_export(
     room_id: int | None,
     include_all: bool,
 ) -> str:
-    if include_all:
-        rows = _fetch_scoped(db, org_id, None, room_id)
-    else:
-        rows = _fetch_scoped(db, org_id, user_id, room_id)
-
+    rows = _fetch_scoped(db, org_id, None, room_id)
+    
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(EXPORT_HEADER)
