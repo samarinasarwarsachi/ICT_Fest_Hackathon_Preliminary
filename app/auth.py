@@ -6,7 +6,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import Depends, Request
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from .config import (
@@ -26,6 +27,8 @@ _used_refresh_tokens: set[str] = set()
 
 _PBKDF2_ROUNDS = 100_000
 
+bearer_scheme = HTTPBearer(auto_error=False)
+
 
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
@@ -38,7 +41,12 @@ def verify_password(password: str, stored: str) -> bool:
         salt_hex, dk_hex = stored.split(":")
     except ValueError:
         return False
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt_hex), _PBKDF2_ROUNDS)
+    dk = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode(),
+        bytes.fromhex(salt_hex),
+        _PBKDF2_ROUNDS,
+    )
     return hmac.compare_digest(dk.hex(), dk_hex)
 
 
@@ -87,12 +95,15 @@ def revoke_access_token(payload: dict) -> None:
     _revoked_tokens.add(payload["jti"])
 
 
-def get_token_payload(request: Request) -> dict:
-    header = request.headers.get("Authorization")
-    if not header or not header.startswith("Bearer "):
+def get_token_payload(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> dict:
+    if credentials is None:
         raise AppError(401, "UNAUTHORIZED", "Missing bearer token")
-    token = header[len("Bearer "):].strip()
+
+    token = credentials.credentials
     payload = decode_token(token)
+
     if payload.get("type") != "access":
         raise AppError(401, "UNAUTHORIZED", "Wrong token type")
     if payload.get("jti") in _revoked_tokens:
